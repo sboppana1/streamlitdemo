@@ -7,7 +7,7 @@ import json
 
 WATCH_LIST_FILE = 'watch_list.txt'
 
-@st.cache(ttl=30)  # Cache data for 30 seconds (0.5 minutes)
+@st.cache(ttl=300)  # Initial default TTL, will be dynamically adjusted based on user input
 def fetch_stock_data(symbol, volume_threshold, price_threshold):
     stock = yf.Ticker(symbol)
     hist = stock.history(period="60d")
@@ -45,15 +45,12 @@ def save_watch_list(watch_list):
         for symbol in watch_list:
             file.write(symbol + '\n')
 
-def auto_refresh(interval_seconds=30):
-    if 'last_refresh' not in st.session_state or (datetime.now() - st.session_state['last_refresh']) > timedelta(seconds=interval_seconds):
-        st.session_state['last_refresh'] = datetime.now()
-        st.experimental_rerun()
-
 def main():
     st.title("Stock Watch List with Alerts")
     
-    auto_refresh(interval_seconds=30)  # Check for refresh every 5 minutes
+    # Allow users to specify refresh interval
+    refresh_interval = st.sidebar.number_input("Refresh Interval (Seconds)", min_value=10, max_value=3600, value=300)
+    st.sidebar.caption("Current refresh interval: {} seconds".format(refresh_interval))
     
     india_time = datetime.now(pytz.timezone('Asia/Kolkata'))
     st.caption(f"Last Refreshed: {india_time.strftime('%Y-%m-%d %H:%M:%S IST')}")
@@ -81,7 +78,7 @@ def main():
         
         if data:
             df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True)  # Use the maximum width available
+            st.dataframe(df, use_container_width=True)  # Allows column sorting
             
             # Download data as JSON
             st.download_button(
