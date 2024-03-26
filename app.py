@@ -7,7 +7,7 @@ import json
 
 WATCH_LIST_FILE = 'watch_list.txt'
 
-@st.cache(ttl=300)  # Initial default TTL, will be dynamically adjusted based on user input
+@st.cache
 def fetch_stock_data(symbol, volume_threshold, price_threshold):
     stock = yf.Ticker(symbol)
     hist = stock.history(period="60d")
@@ -31,7 +31,7 @@ def fetch_stock_data(symbol, volume_threshold, price_threshold):
         'Cur Prc': current_price,
         'Hist Avg Vol': historical_avg_volume,
         'Prev Prc': prev_close_price
-    }, None
+    }
 
 def load_watch_list():
     try:
@@ -48,15 +48,16 @@ def save_watch_list(watch_list):
 def main():
     st.title("Stock Watch List with Alerts")
     
-    # Allow users to specify refresh interval
-    refresh_interval = st.sidebar.number_input("Refresh Interval (Seconds)", min_value=10, max_value=3600, value=300)
-    st.sidebar.caption("Current refresh interval: {} seconds".format(refresh_interval))
+    # Sidebar for user inputs
+    refresh_interval = st.sidebar.number_input("Refresh Interval (Seconds)", min_value=10, max_value=3600, value=300, key='refresh_interval')
+    volume_threshold = st.sidebar.number_input("Vol Chg Threshold (%)", value=10.0, key='volume_threshold')
+    price_threshold = st.sidebar.number_input("Prc Chg Threshold (%)", value=5.0, key='price_threshold')
+
+    if 'next_refresh_time' not in st.session_state:
+        st.session_state['next_refresh_time'] = datetime.now() + timedelta(seconds=refresh_interval)
     
     india_time = datetime.now(pytz.timezone('Asia/Kolkata'))
     st.caption(f"Last Refreshed: {india_time.strftime('%Y-%m-%d %H:%M:%S IST')}")
-    
-    volume_threshold = st.sidebar.number_input("Vol Chg Threshold (%)", value=10.0)
-    price_threshold = st.sidebar.number_input("Prc Chg Threshold (%)", value=5.0)
 
     watch_list = load_watch_list()
     current_symbols = ', '.join(watch_list)
@@ -65,7 +66,7 @@ def main():
     if st.button("Update Watch List"):
         watch_list = [symbol.strip().upper() for symbol in new_symbols.split(',')]
         save_watch_list(watch_list)
-        st.experimental_rerun()
+        st.session_state['next_refresh_time'] = datetime.now()  # Reset refresh timer after update
 
     if watch_list:
         data = []
@@ -78,15 +79,18 @@ def main():
         
         if data:
             df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True)  # Allows column sorting
+            st.dataframe(df, use_container_width=True)  # Allows column sorting and uses maximum width
             
-            # Download data as JSON
             st.download_button(
                 "Download Data as JSON",
                 data=json.dumps(data, indent=2),
                 file_name="stock_data.json",
                 mime="application/json"
             )
+
+    if datetime.now() >= st.session_state['next_refresh_time']:
+        st.session_state['next_refresh_time'] = datetime.now() + timedelta(seconds=refresh_interval)
+        st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
