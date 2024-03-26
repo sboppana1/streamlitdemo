@@ -7,7 +7,8 @@ import json
 
 WATCH_LIST_FILE = 'watch_list.txt'
 
-def fetch_data(symbol, volume_threshold, price_threshold):
+@st.cache(ttl=30)  # Cache data for 30 seconds (0.5 minutes)
+def fetch_stock_data(symbol, volume_threshold, price_threshold):
     stock = yf.Ticker(symbol)
     hist = stock.history(period="60d")
     
@@ -22,12 +23,6 @@ def fetch_data(symbol, volume_threshold, price_threshold):
     prev_close_price = hist.iloc[-2]['Close']
     price_change_pct = round(((current_price - prev_close_price) / prev_close_price) * 100, 2)
     
-    alerts = []
-    if abs(volume_change_pct) > volume_threshold:
-        alerts.append(f"Vol Chg: {volume_change_pct}% exceeds threshold.")
-    if abs(price_change_pct) > price_threshold:
-        alerts.append(f"Prc Chg: {price_change_pct}% exceeds threshold.")
-    
     return {
         'Ticker': symbol,
         'Vol Chg %': volume_change_pct,
@@ -35,8 +30,7 @@ def fetch_data(symbol, volume_threshold, price_threshold):
         'Cur Vol': current_volume,
         'Cur Prc': current_price,
         'Hist Avg Vol': historical_avg_volume,
-        'Prev Prc': prev_close_price,
-        'Alerts': ' | '.join(alerts)
+        'Prev Prc': prev_close_price
     }, None
 
 def load_watch_list():
@@ -51,19 +45,26 @@ def save_watch_list(watch_list):
         for symbol in watch_list:
             file.write(symbol + '\n')
 
+def auto_refresh(interval_seconds=30):
+    if 'last_refresh' not in st.session_state or (datetime.now() - st.session_state['last_refresh']) > timedelta(seconds=interval_seconds):
+        st.session_state['last_refresh'] = datetime.now()
+        st.experimental_rerun()
+
 def main():
     st.title("Stock Watch List with Alerts")
-
+    
+    auto_refresh(interval_seconds=30)  # Check for refresh every 5 minutes
+    
     india_time = datetime.now(pytz.timezone('Asia/Kolkata'))
     st.caption(f"Last Refreshed: {india_time.strftime('%Y-%m-%d %H:%M:%S IST')}")
-
-    volume_threshold = st.sidebar.number_input("Volume Change Threshold (%)", value=10.0)
-    price_threshold = st.sidebar.number_input("Price Change Threshold (%)", value=5.0)
+    
+    volume_threshold = st.sidebar.number_input("Vol Chg Threshold (%)", value=10.0)
+    price_threshold = st.sidebar.number_input("Prc Chg Threshold (%)", value=5.0)
 
     watch_list = load_watch_list()
-    
     current_symbols = ', '.join(watch_list)
     new_symbols = st.text_area("Enter stock symbols separated by commas", value=current_symbols)
+    
     if st.button("Update Watch List"):
         watch_list = [symbol.strip().upper() for symbol in new_symbols.split(',')]
         save_watch_list(watch_list)
@@ -72,7 +73,7 @@ def main():
     if watch_list:
         data = []
         for symbol in watch_list:
-            symbol_data, error = fetch_data(symbol, volume_threshold, price_threshold)
+            symbol_data, error = fetch_stock_data(symbol, volume_threshold, price_threshold)
             if symbol_data:
                 data.append(symbol_data)
             elif error:
@@ -80,13 +81,14 @@ def main():
         
         if data:
             df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, use_container_width=True)  # Use the maximum width available
             
+            # Download data as JSON
             st.download_button(
-                label="Download Data as JSON",
+                "Download Data as JSON",
                 data=json.dumps(data, indent=2),
-                file_name='stocks_data.json',
-                mime='application/json'
+                file_name="stock_data.json",
+                mime="application/json"
             )
 
 if __name__ == "__main__":
