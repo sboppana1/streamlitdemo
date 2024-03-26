@@ -17,26 +17,28 @@ def fetch_data(symbol, volume_threshold, price_threshold):
     current_volume = hist.iloc[-1]['Volume']
     historical_avg_volume = hist['Volume'].mean()
     volume_change_pct = ((current_volume - historical_avg_volume) / historical_avg_volume) * 100
+    volume_change_pct = round(volume_change_pct, 2)  # Round to two decimal places
     
     current_price = hist.iloc[-1]['Close']
     prev_close_price = hist.iloc[-2]['Close']
     price_change_pct = ((current_price - prev_close_price) / prev_close_price) * 100
+    price_change_pct = round(price_change_pct, 2)  # Round to two decimal places
     
     alerts = []
     if abs(volume_change_pct) > volume_threshold:
-        alerts.append(f"Volume change ({volume_change_pct:.2f}%) exceeds threshold.")
+        alerts.append(f"Volume change ({volume_change_pct}%) exceeds threshold.")
     if abs(price_change_pct) > price_threshold:
-        alerts.append(f"Price change ({price_change_pct:.2f}%) exceeds threshold.")
+        alerts.append(f"Price change ({price_change_pct}%) exceeds threshold.")
     
     return {
         'Symbol': symbol,
+        'Volume Change %': volume_change_pct,
+        'Price Change %': price_change_pct,
         'Current Volume': current_volume,
         'Historical Avg Volume': historical_avg_volume,
-        'Volume Change %': volume_change_pct,
         'Current Price': current_price,
         'Prev Close Price': prev_close_price,
-        'Price Change %': price_change_pct,
-        'Alerts': alerts
+        'Alerts': ' | '.join(alerts)  # Joining alerts into a single string for display
     }, None
 
 def load_watch_list():
@@ -82,7 +84,8 @@ def main():
         
         if data:
             df = pd.DataFrame(data)
-            st.dataframe(df, width=700, height=400)
+            # Set table to use maximum width
+            st.dataframe(df, use_container_width=True)
             
             # Download button for JSON data
             st.download_button(
