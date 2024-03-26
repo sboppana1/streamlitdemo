@@ -16,29 +16,27 @@ def fetch_data(symbol, volume_threshold, price_threshold):
     
     current_volume = hist.iloc[-1]['Volume']
     historical_avg_volume = hist['Volume'].mean()
-    volume_change_pct = ((current_volume - historical_avg_volume) / historical_avg_volume) * 100
-    volume_change_pct = round(volume_change_pct, 2)  # Round to two decimal places
+    volume_change_pct = round(((current_volume - historical_avg_volume) / historical_avg_volume) * 100, 2)
     
     current_price = hist.iloc[-1]['Close']
     prev_close_price = hist.iloc[-2]['Close']
-    price_change_pct = ((current_price - prev_close_price) / prev_close_price) * 100
-    price_change_pct = round(price_change_pct, 2)  # Round to two decimal places
+    price_change_pct = round(((current_price - prev_close_price) / prev_close_price) * 100, 2)
     
     alerts = []
     if abs(volume_change_pct) > volume_threshold:
-        alerts.append(f"Volume change ({volume_change_pct}%) exceeds threshold.")
+        alerts.append(f"Vol Chg: {volume_change_pct}% exceeds threshold.")
     if abs(price_change_pct) > price_threshold:
-        alerts.append(f"Price change ({price_change_pct}%) exceeds threshold.")
+        alerts.append(f"Prc Chg: {price_change_pct}% exceeds threshold.")
     
     return {
-        'Symbol': symbol,
-        'Volume Change %': volume_change_pct,
-        'Price Change %': price_change_pct,
-        'Current Volume': current_volume,
-        'Historical Avg Volume': historical_avg_volume,
-        'Current Price': current_price,
-        'Prev Close Price': prev_close_price,
-        'Alerts': ' | '.join(alerts)  # Joining alerts into a single string for display
+        'Ticker': symbol,
+        'Vol Chg %': volume_change_pct,
+        'Prc Chg %': price_change_pct,
+        'Cur Vol': current_volume,
+        'Cur Prc': current_price,
+        'Hist Avg Vol': historical_avg_volume,
+        'Prev Prc': prev_close_price,
+        'Alerts': ' | '.join(alerts)
     }, None
 
 def load_watch_list():
@@ -56,7 +54,6 @@ def save_watch_list(watch_list):
 def main():
     st.title("Stock Watch List with Alerts")
 
-    # Displaying the Indian timestamp of last refresh
     india_time = datetime.now(pytz.timezone('Asia/Kolkata'))
     st.caption(f"Last Refreshed: {india_time.strftime('%Y-%m-%d %H:%M:%S IST')}")
 
@@ -65,9 +62,8 @@ def main():
 
     watch_list = load_watch_list()
     
-    # Display the currently configured watch list symbols in the textbox
     current_symbols = ', '.join(watch_list)
-    new_symbols = st.text_area("Enter stock symbols separated by comma (e.g., AAPL, MSFT, GOOGL)", value=current_symbols)
+    new_symbols = st.text_area("Enter stock symbols separated by commas", value=current_symbols)
     if st.button("Update Watch List"):
         watch_list = [symbol.strip().upper() for symbol in new_symbols.split(',')]
         save_watch_list(watch_list)
@@ -84,10 +80,8 @@ def main():
         
         if data:
             df = pd.DataFrame(data)
-            # Set table to use maximum width
             st.dataframe(df, use_container_width=True)
             
-            # Download button for JSON data
             st.download_button(
                 label="Download Data as JSON",
                 data=json.dumps(data, indent=2),
